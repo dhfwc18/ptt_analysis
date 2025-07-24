@@ -9,30 +9,34 @@ from concurrent.futures import ThreadPoolExecutor
 import time
 import random
 
+# Internal imports
+from config.config import load_headers
+
 # Logging setup
-import logging
-logger = logging.getLogger(__name__)
+from config.logging_config import setup_logging, get_logger
+
+setup_logging()
+logger = get_logger(__name__)
 
 MAIN_URL = "https://www.ptt.cc/"
 
 def _get_and_open(url: str, max_retries: int = 3) -> BeautifulSoup:
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
+    headers = load_headers()
 
     for attempt in range(max_retries):
         try:
             response = requests.get(url, headers=headers, timeout=10)
             response.raise_for_status()
             soup = BeautifulSoup(response.content, "html.parser")
-            time.sleep(random.uniform(0.5, 1.5))
             return soup
         except requests.exceptions.RequestException as e:
             if attempt < max_retries - 1:
-                logger.warning(f"Request failed for {url}, attempt {attempt + 1}: {e}")
+                logger.warning(
+                    f"Request failed for {url}, attempt {attempt + 1}: {e}")
                 time.sleep(random.uniform(2, 5))
                 continue
-            logger.error(f"Failed to fetch {url} after {max_retries} attempts: {e}")
+            logger.error(
+                f"Failed to fetch {url} after {max_retries} attempts: {e}")
             raise e
 
 def _get_content(page_url: str, party: str):
@@ -146,7 +150,7 @@ def crawl(party):
     match = re.search(r"(?<=index)\d+(?=\.html)", final_page_url)
     if match:
         total_pages = match.group(0)
-        logger.info(f"Total pages: {total_pages}")
+        logger.debug(f"Total pages: {total_pages}")
     else:
         logger.warning(
             "Cannot find total_pages from final_page_url. Exiting scraping..."
@@ -172,7 +176,7 @@ def crawl(party):
     logger.info(
         "All necessary information extracted proceed to scrape data..."
         )
-
+    logger.debug(f"Initiating scraping of {total_pages} pages")
     all_page_urls = []
     for i in range(1, total_pages + 1):
         bulletin_url = f"{entry_url}/index{i}.html"
@@ -201,7 +205,9 @@ def crawl(party):
         return None
 
     with ThreadPoolExecutor(max_workers=10) as executor:
-        data = list(executor.map(lambda url: _get_content(url, party), all_page_urls))
+        data = list(
+            executor.map(lambda url: _get_content(url, party), all_page_urls)
+        )
         data = [item for item in data if item is not None]
         if not data:
             logger.warning("No data extracted")
