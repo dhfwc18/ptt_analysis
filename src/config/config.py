@@ -5,6 +5,7 @@ from pathlib import Path
 import json
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+OUTPUT_DIR = PROJECT_ROOT / "output"
 SRC_DIR = PROJECT_ROOT / "src"
 HEADER_FILE = SRC_DIR / "config/headers.json"
 
