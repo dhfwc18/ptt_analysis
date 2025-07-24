@@ -48,63 +48,43 @@ def _get_content(page_url: str, party: str):
     # (e.g. pages with media embeddings)
     try:
         content_page = _get_and_open(page_url)
-        content_block = content_page.find(
-            "div", class_="bbs-screen bbs-content")
-
-        if not content_block:
-            logger.warning(f"No content block found in {page_url}")
+        main_content = content_page.find("div", id="main-content")
+        if not main_content:
+            logger.warning(f"No main content found in {page_url}")
             return None
-
-        for div in content_block.find_all("div"):
-            try:
-                div_class = div.get("class", None)
-                if not isinstance(div_class, list) or not div_class:
+        article_metaline = main_content.find_all("div", class_="article-metaline")
+        for span in article_metaline:
+            match span.text:
+                case "標題":
+                    title = span.find("span", class_="article-meta-value").text
+                case "時間":
+                    time = span.find("span", class_="article-meta-value").text
+                case "作者":
+                    author = span.find("span", class_="article-meta-value").text
+                case _:
                     continue
-                else:
-                    first_div_class = div_class[0]
-                    if not isinstance(first_div_class, str):
-                        continue
-
-                if first_div_class == "article-metaline":
-                    info = div.find("span", class_="article-meta-value")
-                    if not info:
-                        continue
-
-                    information_text = info.text
-                    if "標題" in div.text:
-                        title = information_text
-                        if title and "公告" in title:
-                            logger.debug(f"Page is announcement: {page_url}")
-                            return None
-                    elif "時間" in div.text:
-                        time = information_text
-
-                div.decompose()
-
-            except Exception as e:
-                logger.exception(
-                    f"Unexpected error parsing a div in {page_url}: {e}")
-                div.decompose()
-                continue
-
-        # Remove unwanted spans
-        for span in content_block.find_all("span", class_="f2"):
-            if ":" in span.text or "：" in span.text:
-                span.decompose()
-
-        for span in content_block.find_all("span", class_="f6"):
-            span.decompose()
-
-        # NOW extract the text after all processing
-        text = content_block.text.strip() if content_block else ""
-
         if title is None or time is None:
             return None
+        if "公告" in title:
+            logger.debug(f"Page is announcement: {page_url}")
+            return None
+        span_to_remove = (
+            article_metaline
+            + main_content.find_all("span", class_="f2")
+            + main_content.find_all("span", class_="f6")
+        )
+        for span in span_to_remove:
+            span.decompose()
+        content_text = main_content.text.strip()
+        if len(content_text) < 10:
+            logger.debug(f"Insufficient content length in {page_url}")
 
         return {
+            "author": author,
             "title": title,
             "time": time,
-            "content": text,
+            "content": content_text,
+            "url": page_url,
             "party": party
         }
 
@@ -112,12 +92,36 @@ def _get_content(page_url: str, party: str):
         logger.exception(f"Unexpected error parsing {page_url}: {e}")
         return None
 
+def _get_all_content_urls(page_num: int, entry_url: str):
+    bulletin_url = f"{entry_url}/index{page_num}.html"
+    all_urls = list()
+    try:
+        bulletin_page = _get_and_open(bulletin_url)
+        for block in bulletin_page.find_all("div", class_ = "title"):
+            try:
+                page_endpoint = block.find("a").get("href", None)
+                if page_endpoint is not None:
+                    full_url = f"{MAIN_URL}{page_endpoint}"
+                    all_urls.append(full_url)
+                else:
+                    logger.warning(f"href not found in {block}")
+                    continue
+            except Exception as e:
+                logger.exception(
+                    f"Error processing url in page {page_num}: {e}"
+                )
+                continue
+        return all_urls
+    except Exception as e:
+        logger.exception(f"Error processing page {page_num}: {e}")
+        return None
+
 def crawl(party):
     if not party or not isinstance(party, str):
         logger.error("Invalid party parameter")
         return None
 
-    entry_url = f"{MAIN_URL}/bbs/{party}"
+    entry_url = f"{MAIN_URL}bbs/{party}"
     try:
         init_page = _get_and_open(entry_url)
     except requests.exceptions.RequestException as e:
@@ -176,37 +180,27 @@ def crawl(party):
     logger.info(
         "All necessary information extracted proceed to scrape data..."
         )
-    logger.debug(f"Initiating scraping of {total_pages} pages")
-    all_page_urls = []
-    for i in range(1, total_pages + 1):
-        bulletin_url = f"{entry_url}/index{i}.html"
-        try:
-            bulletin_page = _get_and_open(bulletin_url)
-            for block in bulletin_page.find_all("div", class_ = "title"):
-                try:
-                    page_endpoint = block.find("a").get("href", None)
-                    if page_endpoint is not None:
-                        full_url = f"{MAIN_URL}{page_endpoint}"
-                        all_page_urls.append(full_url)
-                    else:
-                        logger.warning(f"href not found in {block}")
-                        continue
-                except Exception as e:
-                    logger.exception(
-                        f"Unexpected error processing item in page {i}: {e}"
-                    )
-                    continue
-        except Exception as e:
-            logger.exception(f"Error processing page {i}: {e}")
-            continue
+    with ThreadPoolExecutor(max_workers=20) as executor:
+        content_urls = list(
+            executor.map(
+                lambda page_num: _get_all_content_urls(page_num, entry_url),
+                range(1, total_pages + 1)
+            )
+        )
+    content_urls = [
+        url for sublist in content_urls if sublist is not None
+        for url in sublist if url is not None
+    ]
 
-    if not all_page_urls:
+    if not content_urls:
         logger.warning("No page URLs collected")
         return None
+    logger.debug(f"Collected {len(content_urls)} content page URLs")
+    logger.info(f"Initiating scraping of {len(content_urls)} content pages")
 
-    with ThreadPoolExecutor(max_workers=10) as executor:
+    with ThreadPoolExecutor(max_workers=20) as executor:
         data = list(
-            executor.map(lambda url: _get_content(url, party), all_page_urls)
+            executor.map(lambda url: _get_content(url, party), content_urls)
         )
         data = [item for item in data if item is not None]
         if not data:
@@ -215,5 +209,26 @@ def crawl(party):
         df = pd.DataFrame(data)
         return df
 
+def main():
+    KMT_df = crawl("KMT")
+    if KMT_df is not None:
+        KMT_df.to_csv("KMT_data.csv", index=False)
+        logger.info("KMT data saved to KMT_data.csv")
+    else:
+        logger.error("Failed to scrape KMT data")
+    DPP_df = crawl("DPP")
+    if DPP_df is not None:
+        DPP_df.to_csv("DPP_data.csv", index=False)
+        logger.info("DPP data saved to DPP_data.csv")
+    else:
+        logger.error("Failed to scrape DPP data")
+    if KMT_df is None or DPP_df is None:
+        logger.error("One or both dataframes are None, cannot combine")
+        return None
+    main_df = pd.concat([KMT_df, DPP_df], ignore_index=True)
+    main_df.to_csv("main_data.csv", index=False)
+    logger.info("Combined data saved to main_data.csv")
+    return main_df
+
 if __name__ == "__main__":
-    crawl("KMT")
+    main()
