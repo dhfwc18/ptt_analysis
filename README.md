@@ -1,0 +1,1 @@
+This project aims to analyse political sentiment embedded in the content of Taiwan's PTT forum. The crawler is not meant for commercial use and any usage outside of educational analysis is not supported nor endorse by the author.
