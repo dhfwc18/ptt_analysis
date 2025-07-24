@@ -10,7 +10,7 @@ import time
 import random
 
 # Internal imports
-from config.config import load_headers
+from config.config import load_headers, OUTPUT_DIR
 
 # Logging setup
 from config.logging_config import setup_logging, get_logger
@@ -212,13 +212,13 @@ def crawl(party):
 def main():
     KMT_df = crawl("KMT")
     if KMT_df is not None:
-        KMT_df.to_csv("KMT_data.csv", index=False)
+        KMT_df.to_csv(OUTPUT_DIR / "KMT_data.csv", index=False)
         logger.info("KMT data saved to KMT_data.csv")
     else:
         logger.error("Failed to scrape KMT data")
     DPP_df = crawl("DPP")
     if DPP_df is not None:
-        DPP_df.to_csv("DPP_data.csv", index=False)
+        DPP_df.to_csv(OUTPUT_DIR / "DPP_data.csv", index=False)
         logger.info("DPP data saved to DPP_data.csv")
     else:
         logger.error("Failed to scrape DPP data")
@@ -226,7 +226,7 @@ def main():
         logger.error("One or both dataframes are None, cannot combine")
         return None
     main_df = pd.concat([KMT_df, DPP_df], ignore_index=True)
-    main_df.to_csv("main_data.csv", index=False)
+    main_df.to_csv(OUTPUT_DIR / "main_data.csv", index=False)
     logger.info("Combined data saved to main_data.csv")
     return main_df
 

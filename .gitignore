@@ -1,6 +1,7 @@
-logs/
 .venv/
 .env
 *.egg-info/
+logs/
+output/
 __pycache__/
 *.py[cod]
