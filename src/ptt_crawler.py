@@ -29,11 +29,24 @@ def _get_and_open(url: str, max_retries: int = 3) -> BeautifulSoup:
             response.raise_for_status()
             soup = BeautifulSoup(response.content, "html.parser")
             return soup
+        except requests.exceptions.HTTPError as e:
+            if response.status_code == 404:
+                logger.error(f"404 Not Found for {url}, skipping retries")
+                raise e
+            # For other HTTP errors, continue with retry logic
+            if attempt < max_retries - 1:
+                logger.warning(
+                    f"HTTP error for {url}, attempt {attempt + 1}: {e}")
+                time.sleep(random.uniform(2, 4))
+                continue
+            logger.error(
+                f"Failed to fetch {url} after {max_retries} attempts: {e}")
+            raise e
         except requests.exceptions.RequestException as e:
             if attempt < max_retries - 1:
                 logger.warning(
                     f"Request failed for {url}, attempt {attempt + 1}: {e}")
-                time.sleep(random.uniform(2, 5))
+                time.sleep(random.uniform(2, 4))
                 continue
             logger.error(
                 f"Failed to fetch {url} after {max_retries} attempts: {e}")
@@ -77,8 +90,11 @@ def _get_content(page_url: str, party: str):
             span.decompose()
         content_text = main_content.text.strip()
         if len(content_text) < 10:
-            logger.debug(f"Insufficient content length in {page_url}")
-
+            logger.warning(f"Insufficient content length in {page_url}")
+        logger.debug(
+            f"{page_url} parsed successfully."
+            " Content length: {len(content_text)}"
+        )
         return {
             "author": author,
             "title": title,
@@ -123,7 +139,7 @@ def crawl(party):
 
     entry_url = f"{MAIN_URL}bbs/{party}"
     try:
-        init_page = _get_and_open(entry_url)
+        init_page = _get_and_open(entry_url, max_retries=3)
     except requests.exceptions.RequestException as e:
         logger.exception(f"Request error for {entry_url}: {e}")
         return None
