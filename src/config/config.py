@@ -6,6 +6,7 @@ import json
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_DIR = PROJECT_ROOT / "output"
+MAPPING_DIR = OUTPUT_DIR / "mappings"
 SRC_DIR = PROJECT_ROOT / "src"
 HEADER_FILE = SRC_DIR / "config/headers.json"
 
