@@ -2,6 +2,6 @@
 .env
 *.egg-info/
 logs/
-output/
+output/*.csv
 __pycache__/
 *.py[cod]
