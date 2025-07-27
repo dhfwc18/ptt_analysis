@@ -1,4 +1,12 @@
-# ptt_crawler.py
+# pipeline/ptt_crawler.py
+"""
+Crawler module for scraping PTT sub-forumns.
+
+This module scrapes the KMT and DPP sub-forums on PTT,
+extracts article metadata, and saves the data to CSV files.
+"""
+
+__all__ = ["crawl"]
 
 # External imports
 import requests
@@ -10,12 +18,11 @@ import time
 import random
 
 # Internal imports
-from config.config import load_headers, OUTPUT_DIR
+from config.config import load_headers
 
-# Logging setup
-from config.logging_config import setup_logging, get_logger
+# Get logger
+from config.logging_config import get_logger
 
-setup_logging()
 logger = get_logger(__name__)
 
 MAIN_URL = "https://www.ptt.cc/"
@@ -52,7 +59,7 @@ def _get_and_open(url: str, max_retries: int = 3) -> BeautifulSoup:
                 f"Failed to fetch {url} after {max_retries} attempts: {e}")
             raise e
 
-def _get_content(page_url: str, party: str):
+def _get_content(page_url: str, sub_forum: str):
     """Extract content from a PTT page."""
     logger.debug(f"Processing page: {page_url}")
     # Initialize variables to prevent NameError
@@ -113,7 +120,7 @@ def _get_content(page_url: str, party: str):
             "time": time,
             "content": content_text,
             "url": page_url,
-            "party": party
+            "sub_forum": sub_forum
         }
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 404:
@@ -152,12 +159,12 @@ def _get_all_content_urls(page_num: int, entry_url: str):
         logger.exception(f"Error processing page {page_num}: {e}")
         return None
 
-def crawl(party):
-    if not party or not isinstance(party, str):
-        logger.error("Invalid party parameter")
+def crawl(sub_forum):
+    if not sub_forum or not isinstance(sub_forum, str):
+        logger.error("Invalid sub_forum parameter")
         return None
 
-    entry_url = f"{MAIN_URL}bbs/{party}"
+    entry_url = f"{MAIN_URL}bbs/{sub_forum}"
     try:
         init_page = _get_and_open(entry_url, max_retries=3)
     except requests.exceptions.RequestException as e:
@@ -202,7 +209,7 @@ def crawl(party):
             total_pages = int(total_pages)
         except Exception as e:
             logger.exception(
-                f"Unexpected exception parsing total_pages for {party}: {e}"
+                f"Unexpected exception parsing total_pages for {sub_forum}: {e}"
             )
             return None
 
@@ -236,7 +243,7 @@ def crawl(party):
 
     with ThreadPoolExecutor(max_workers=20) as executor:
         data = list(
-            executor.map(lambda url: _get_content(url, party), content_urls)
+            executor.map(lambda url: _get_content(url, sub_forum), content_urls)
         )
         data = [item for item in data if item is not None]
         if not data:
@@ -244,27 +251,3 @@ def crawl(party):
             return None
         df = pd.DataFrame(data)
         return df
-
-def main():
-    KMT_df = crawl("KMT")
-    if KMT_df is not None:
-        KMT_df.to_csv(OUTPUT_DIR / "KMT_data.csv", index=False)
-        logger.info("KMT data saved to KMT_data.csv")
-    else:
-        logger.error("Failed to scrape KMT data")
-    DPP_df = crawl("DPP")
-    if DPP_df is not None:
-        DPP_df.to_csv(OUTPUT_DIR / "DPP_data.csv", index=False)
-        logger.info("DPP data saved to DPP_data.csv")
-    else:
-        logger.error("Failed to scrape DPP data")
-    if KMT_df is None or DPP_df is None:
-        logger.error("One or both dataframes are None, cannot combine")
-        return None
-    main_df = pd.concat([KMT_df, DPP_df], ignore_index=True)
-    main_df.to_csv(OUTPUT_DIR / "main_data.csv", index=False)
-    logger.info("Combined data saved to main_data.csv")
-    return main_df
-
-if __name__ == "__main__":
-    main()

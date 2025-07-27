@@ -5,3 +5,4 @@ logs/
 output/*.csv
 __pycache__/
 *.py[cod]
+mappings/
