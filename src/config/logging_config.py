@@ -62,7 +62,7 @@ def _get_log_handlers():
         "console_info": {
             "class": "logging.StreamHandler",
             "formatter": "console",
-            "level": "DEBUG",
+            "level": "INFO",
             "stream": sys.stdout,
             "filters": ["console_info_filter"]
         },

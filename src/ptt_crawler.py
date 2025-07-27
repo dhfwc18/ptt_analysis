@@ -53,9 +53,12 @@ def _get_and_open(url: str, max_retries: int = 3) -> BeautifulSoup:
             raise e
 
 def _get_content(page_url: str, party: str):
+    """Extract content from a PTT page."""
+    logger.debug(f"Processing page: {page_url}")
     # Initialize variables to prevent NameError
     title = None
     time = None
+    author = None
 
     # Guard against pages that deviates from the standard div structure
     # (e.g. pages with media embeddings)
@@ -66,17 +69,25 @@ def _get_content(page_url: str, party: str):
             logger.warning(f"No main content found in {page_url}")
             return None
         article_metaline = main_content.find_all("div", class_="article-metaline")
-        for span in article_metaline:
-            match span.text:
-                case "標題":
-                    title = span.find("span", class_="article-meta-value").text
-                case "時間":
-                    time = span.find("span", class_="article-meta-value").text
-                case "作者":
-                    author = span.find("span", class_="article-meta-value").text
-                case _:
-                    continue
+        for metaline in article_metaline:
+            tag_span = metaline.find("span", class_="article-meta-tag")
+            value_span = metaline.find("span", class_="article-meta-value")
+            if tag_span and value_span:
+                tag_text = tag_span.text.strip()
+                value_text = value_span.text.strip()
+                match tag_text:
+                    case "標題":
+                        title = value_text
+                    case "時間":
+                        time = value_text
+                    case "作者":
+                        author = value_text
+                    case _:
+                        continue
+            else:
+                continue
         if title is None or time is None:
+            logger.warning(f"Missing title or time in {page_url}")
             return None
         if "公告" in title:
             logger.debug(f"Page is announcement: {page_url}")
@@ -91,9 +102,10 @@ def _get_content(page_url: str, party: str):
         content_text = main_content.text.strip()
         if len(content_text) < 10:
             logger.warning(f"Insufficient content length in {page_url}")
+            return None
         logger.debug(
             f"{page_url} parsed successfully."
-            " Content length: {len(content_text)}"
+            f" Content length: {len(content_text)}"
         )
         return {
             "author": author,
@@ -103,7 +115,15 @@ def _get_content(page_url: str, party: str):
             "url": page_url,
             "party": party
         }
-
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code == 404:
+            logger.error(f"404 Not Found for {page_url}, skipping")
+            return None
+        logger.exception(f"HTTP error for {page_url}: {e}")
+        return None
+    except requests.exceptions.RequestException as e:
+        logger.exception(f"Request error for {page_url}: {e}")
+        return None
     except Exception as e:
         logger.exception(f"Unexpected error parsing {page_url}: {e}")
         return None
