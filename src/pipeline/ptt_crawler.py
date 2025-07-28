@@ -10,6 +10,7 @@ __all__ = ["crawl"]
 
 # External imports
 import requests
+import bs4
 from bs4 import BeautifulSoup
 import regex as re
 import pandas as pd
@@ -59,6 +60,30 @@ def _get_and_open(url: str, max_retries: int = 3) -> BeautifulSoup:
                 f"Failed to fetch {url} after {max_retries} attempts: {e}")
             raise e
 
+def _get_all_content_urls(page_num: int, entry_url: str):
+    bulletin_url = f"{entry_url}/index{page_num}.html"
+    all_urls = list()
+    try:
+        bulletin_page = _get_and_open(bulletin_url)
+        for block in bulletin_page.find_all("div", class_ = "title"):
+            try:
+                page_endpoint = block.find("a").get("href", None)
+                if page_endpoint is not None:
+                    full_url = f"{MAIN_URL}{page_endpoint}"
+                    all_urls.append(full_url)
+                else:
+                    logger.warning(f"href not found in {block}")
+                    continue
+            except Exception as e:
+                logger.exception(
+                    f"Error processing url in page {page_num}: {e}"
+                )
+                continue
+        return all_urls
+    except Exception as e:
+        logger.exception(f"Error processing page {page_num}: {e}")
+        return None
+
 def _get_content(page_url: str, sub_forum: str):
     """Extract content from a PTT page."""
     logger.debug(f"Processing page: {page_url}")
@@ -99,8 +124,13 @@ def _get_content(page_url: str, sub_forum: str):
         if "公告" in title:
             logger.debug(f"Page is announcement: {page_url}")
             return None
+        comments, comment_divs = _get_comments(main_content)
+        if not comments:
+            logger.debug(f"No comments found for {page_url}")
+
         span_to_remove = (
-            article_metaline
+            comment_divs
+            + article_metaline
             + main_content.find_all("span", class_="f2")
             + main_content.find_all("span", class_="f6")
         )
@@ -120,7 +150,8 @@ def _get_content(page_url: str, sub_forum: str):
             "time": time,
             "content": content_text,
             "url": page_url,
-            "sub_forum": sub_forum
+            "sub_forum": sub_forum,
+            "comments": comments
         }
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 404:
@@ -135,29 +166,30 @@ def _get_content(page_url: str, sub_forum: str):
         logger.exception(f"Unexpected error parsing {page_url}: {e}")
         return None
 
-def _get_all_content_urls(page_num: int, entry_url: str):
-    bulletin_url = f"{entry_url}/index{page_num}.html"
-    all_urls = list()
-    try:
-        bulletin_page = _get_and_open(bulletin_url)
-        for block in bulletin_page.find_all("div", class_ = "title"):
-            try:
-                page_endpoint = block.find("a").get("href", None)
-                if page_endpoint is not None:
-                    full_url = f"{MAIN_URL}{page_endpoint}"
-                    all_urls.append(full_url)
-                else:
-                    logger.warning(f"href not found in {block}")
-                    continue
-            except Exception as e:
-                logger.exception(
-                    f"Error processing url in page {page_num}: {e}"
+def _get_comments(main_content: bs4.element.ResultSet) -> tuple[dict, list]:
+    """Extract comments from a PTT page."""
+    comments_data = []
+    comment_divs = []
+    for element in main_content.find_all('div', class_='push'):
+            comment_divs.append(element)
+            push_tag = element.find("span", class_="push-tag")
+            userid = element.find("span", class_="push-userid")
+            content = element.find("span", class_="push-content")
+            ipdatetime = element.find("span", class_="push-ipdatetime")
+
+            if userid and ipdatetime:
+                comments_data.append({
+                    "push_tag": push_tag.text.strip() if push_tag else None,
+                    "userid": userid.text.strip(),
+                    "content": content.text.strip() if content else None,
+                    "ipdatetime": ipdatetime.text.strip()
+                })
+            else:
+                logger.warning(
+                    f"Missing userid or ipdatetime in comment: {element}"
                 )
                 continue
-        return all_urls
-    except Exception as e:
-        logger.exception(f"Error processing page {page_num}: {e}")
-        return None
+    return comments_data, comment_divs
 
 def crawl(sub_forum):
     if not sub_forum or not isinstance(sub_forum, str):
@@ -209,7 +241,8 @@ def crawl(sub_forum):
             total_pages = int(total_pages)
         except Exception as e:
             logger.exception(
-                f"Unexpected exception parsing total_pages for {sub_forum}: {e}"
+                "Unexpected exception parsing total_pages"
+                f" for {sub_forum}: {e}"
             )
             return None
 
@@ -243,7 +276,9 @@ def crawl(sub_forum):
 
     with ThreadPoolExecutor(max_workers=20) as executor:
         data = list(
-            executor.map(lambda url: _get_content(url, sub_forum), content_urls)
+            executor.map(
+                lambda url: _get_content(url, sub_forum), content_urls
+            )
         )
         data = [item for item in data if item is not None]
         if not data:
