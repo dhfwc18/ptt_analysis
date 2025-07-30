@@ -1,14 +1,10 @@
 # pipeline/anonymiser.py
 """Anonymiser module for usernames in PTT data."""
 
-__all__ = ["UserAnonymiser", "anonymise_data"]
-
-# Internal imports
-from config.config import MAPPING_DIR
+__all__ = ["UserAnonymiser"]
 
 # External imports
 import hashlib
-import os
 import random
 import string
 import uuid
@@ -232,34 +228,4 @@ class UserAnonymiser:
             )
             self.counter = max_num + 1
         logger.info(f"Mapping loaded from {filepath}")
-
-def anonymise_data(
-        df: pd.DataFrame, column_name: str, save_to_file: Optional[str] = None
-) -> pd.DataFrame:
-    """
-    Utility function to anonymise a DataFrame column with a
-    UserAnonymiser object (with all settings at the default).
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        The DataFrame containing the usernames.
-    column_name : str
-        The name of the column to anonymise.
-    save_to_file : Optional[str], optional
-        If provided, the mapping will be saved into the mappings
-        directory in output based on the name specified.
-
-    Returns
-    -------
-    pd.DataFrame
-        A copy of the DataFrame with the specified column anonymised.
-    """
-    anonymiser = UserAnonymiser()
-    anonymised_df = anonymiser.anonymise_dataframe(df, column_name)
-    if save_to_file:
-        mapping_path = MAPPING_DIR / save_to_file
-        os.makedirs(MAPPING_DIR, exist_ok=True)
-        anonymiser.save_mapping(mapping_path)
-    return anonymised_df
 
