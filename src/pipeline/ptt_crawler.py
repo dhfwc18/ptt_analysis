@@ -280,9 +280,9 @@ def crawl(sub_forum):
                 lambda url: _get_content(url, sub_forum), content_urls
             )
         )
-        data = [item for item in data if item is not None]
-        if not data:
-            logger.warning("No data extracted")
-            return None
-        df = pd.DataFrame(data)
-        return df
+    data = [item for item in data if item is not None]
+    if not data:
+        logger.warning("No data extracted")
+        return None
+    df = pd.DataFrame(data)
+    return df
