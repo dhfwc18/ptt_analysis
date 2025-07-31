@@ -6,3 +6,5 @@ output/*.csv
 __pycache__/
 *.py[cod]
 mappings/
+*.ipynb
+*.ipynb_checkpoints
