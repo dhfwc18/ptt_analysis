@@ -46,6 +46,13 @@ class UserAnonymiser:
             The length of the radomly generated anonymisation IDs. The
             default is 8.
         """
+        if method not in (
+            ['hash', 'random_string', 'uuid', 'sequential', 'numeric']
+        ):
+            raise ValueError(
+                f"Unknown method: {method}. Choose from 'hash', "
+                "'random_string', 'uuid', 'sequential', or 'numeric'."
+            )
         self.method = method
         self.seed = seed
         self.id_length = id_length
