@@ -20,3 +20,5 @@ def load_headers() -> dict:
         header = json.load(file)
 
     return header
+
+JIEBA_DICT_PATH = SRC_DIR / "config/jieba_dictionary/dict.txt.big"
