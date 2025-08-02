@@ -235,4 +235,3 @@ class UserAnonymiser:
             )
             self.counter = max_num + 1
         logger.info(f"Mapping loaded from {filepath}")
-
