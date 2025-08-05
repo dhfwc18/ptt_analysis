@@ -30,8 +30,13 @@ class TestPttCrawler(unittest.TestCase):
         logging.disable(logging.NOTSET)
 
     def setUp(self):
-        with open(MOCK_HTML_PATH , "r", encoding="utf-8") as file:
+        with open(MOCK_HTML_PATH, "r", encoding="utf-8") as file:
             self.mock_html = file.read()
+        self.sleep_patcher = patch('time.sleep')
+        self.mock_sleep = self.sleep_patcher.start()
+
+    def tearDown(self):
+        self.sleep_patcher.stop()
 
     @patch("requests.get")
     def test_get_and_open_success(self, mock_get):

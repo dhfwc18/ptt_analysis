@@ -13,10 +13,10 @@ class TestTokeniser(unittest.TestCase):
         })
 
     def test_tokenise_basic(self):
-        text = "Hello World"
+        text = "你好，世界！"
         tokens = tokenise(text)
         self.assertIsInstance(tokens, list)
-        self.assertEqual(tokens, ["Hello", "World"])
+        self.assertEqual(tokens, ["你好", "，", "世界", "！"])
 
     def test_tokenise_empty_string(self):
         text = ""

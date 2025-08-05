@@ -11,6 +11,7 @@ import jieba
 import pandas as pd
 import re
 import string
+import validators
 
 
 def tokenise(text: str) -> list:
@@ -81,18 +82,19 @@ class PttTextTokeniser:
         jieba.initialize()
 
     def _basic_cleaning(self, text):
-        # Remove embedded links and other unwanted text
-        text = re.sub(
-            r"(https?:\/\/)(\s)*(www\.)?(\s)*((\w|\s)+\.)*([\w\-\s]+\/)"
-            r"([\w\-]+)((\?)?[\w\s]*=[\w\%&]*)*\s*(.html?)?",
-            "", text, flags = re.MULTILINE
-        )
+        # Remove URLs using validators library
+        words = text.split()
+        words = [word for word in words if not validators.url(word)]
+        text = ' '.join(words)
+
+        # Remove unwanted patterns
         text = re.sub("※\s?(\[本文轉錄自).*", "", text)
         text = re.sub("(作者:).*", "", text)
         text = re.sub("(看板:).*", "", text)
         text = re.sub("(標題:).*", "", text)
         text = re.sub("(時間:).*", "", text)
         text = re.sub(r"\n", " ", text)
+
         return text
 
     def _remove_punct(self, tokens: list) -> list:
