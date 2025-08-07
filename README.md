@@ -1,1 +1,26 @@
+# DISCLAIMER
 This project aims to analyse political sentiment embedded in the content of Taiwan's PTT forum. The analysis is intended to be a follow up reflection/improvement of a dissertation study back in 2020, containing a crawler, a CNN based neural network built using TensorFlow and a short ipython/Jupyter notebook report. The crawler is not meant for commercial use and any usage outside of educational analysis is not supported nor endorse by the author.
+
+# SETUP
+To set up the project run:
+```
+make init
+```
+or
+```
+python -m venv .venv
+.venv/Scripts/Activate.ps1
+pip install -e ".[notebooks, analysis]"
+```
+To clean up pycache
+```
+make clean
+```
+
+# PROJECT OUTLINE
+```mermaid
+flowchart TB
+    subgraph pipeline["pipeline"]
+        crawler["crawler"] --> anonymiser["anonymiser"] --> tokensier["tokeniser"]
+    end
+```
