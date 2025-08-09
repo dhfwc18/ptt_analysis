@@ -121,9 +121,10 @@ def _get_content(page_url: str, sub_forum: str):
         if title is None or time is None:
             logger.warning(f"Missing title or time in {page_url}")
             return None
-        if "公告" in title:
-            logger.debug(f"Page is announcement: {page_url}")
+        if any(keyword in title for keyword in ["公告", "新聞", "轉錄", "轉載"]):
+            logger.debug(f"Page is announcement, news or repost: {page_url}")
             return None
+
         comments, comment_divs = _get_comments(main_content)
         if not comments:
             logger.debug(f"No comments found for {page_url}")
@@ -139,6 +140,9 @@ def _get_content(page_url: str, sub_forum: str):
         content_text = main_content.text.strip()
         if len(content_text) < 10:
             logger.warning(f"Insufficient content length in {page_url}")
+            return None
+        if any(keyword in content_text for keyword in ["轉錄", "轉載"]):
+            logger.debug(f"{page_url} is, mentions or contains a repost.")
             return None
         logger.debug(
             f"{page_url} parsed successfully."

@@ -25,6 +25,7 @@ def main():
         KMT_df = user_anonymiser.anonymise_dataframe(
             df=KMT_df, column_name="author"
         )
+        KMT_df["content"] = KMT_df["content"].apply(anonymiser.filter_bbs_header)
         KMT_df.to_csv(OUTPUT_DIR / "KMT_data.csv", index=False)
         logger.info("KMT data saved to KMT_data.csv")
     else:
@@ -34,6 +35,7 @@ def main():
         DPP_df = user_anonymiser.anonymise_dataframe(
             df=DPP_df, column_name="author"
         )
+        DPP_df["content"] = DPP_df["content"].apply(anonymiser.filter_bbs_header)
         DPP_df.to_csv(OUTPUT_DIR / "DPP_data.csv", index=False)
         logger.info("DPP data saved to DPP_data.csv")
     else:

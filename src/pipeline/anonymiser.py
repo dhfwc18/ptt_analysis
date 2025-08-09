@@ -11,6 +11,7 @@ import uuid
 from typing import Dict, Optional
 
 import pandas as pd
+import re
 
 # Get logger
 from config.logging_config import get_logger
@@ -24,7 +25,7 @@ class UserAnonymiser:
     hashing, random strings, UUIDs, sequential numbering, and random
     numeric IDs.
     """
-    def __init__(self, method='hash', seed=42, id_length=8):
+    def __init__(self, method="hash", seed=42, id_length=8):
         """
         Initialise the anonymiser with the specified method and
         parameters.
@@ -32,7 +33,7 @@ class UserAnonymiser:
         Parameters
         ----------
         method : str, optional
-            The anonymisation method to use. The default is 'hash' and
+            The anonymisation method to use. The default is "hash" and
             the options are:
             - `hash`: Use a hash function to create a deterministic ID.
             - `random_string`: Generate a random string ID.
@@ -47,7 +48,7 @@ class UserAnonymiser:
             default is 8.
         """
         if method not in (
-            ['hash', 'random_string', 'uuid', 'sequential', 'numeric']
+            ["hash", "random_string", "uuid", "sequential", "numeric"]
         ):
             raise ValueError(
                 f"Unknown method: {method}. Choose from 'hash', "
@@ -72,14 +73,14 @@ class UserAnonymiser:
         # Use name as additional seed for consistency
         temp_random = random.Random(f"{name}{self.seed}")
         chars = string.ascii_lowercase + string.digits
-        random_str = ''.join(temp_random.choices(chars, k=self.id_length))
+        random_str = "".join(temp_random.choices(chars, k=self.id_length))
         return f"user_{random_str}"
 
     def _uuid_id(self, name: str) -> str:
         """Create UUID-based ID."""
-        namespace = uuid.UUID('12345678-1234-5678-1234-123456789012')
+        namespace = uuid.UUID("12345678-1234-5678-1234-123456789012")
         deterministic_uuid = uuid.uuid5(namespace, f"{name}{self.seed}")
-        uuid_str = str(deterministic_uuid).replace('-', '')
+        uuid_str = str(deterministic_uuid).replace("-", "")
         return f"user_{uuid_str[:self.id_length]}"
 
     def _sequential_id(self, name: str) -> str:
@@ -110,22 +111,22 @@ class UserAnonymiser:
         str
             Anonymised user ID.
         """
-        if pd.isna(original_name) or original_name == '':
-            return 'UNKNOWN'
+        if pd.isna(original_name) or original_name == "":
+            return "UNKNOWN"
 
         # Check if already anonymised
         if original_name in self.mapping:
             return self.mapping[original_name]
 
-        if self.method == 'hash':
+        if self.method == "hash":
             anon_id = self._hash_id(original_name)
-        elif self.method == 'random_string':
+        elif self.method == "random_string":
             anon_id = self._random_string_id(original_name)
-        elif self.method == 'uuid':
+        elif self.method == "uuid":
             anon_id = self._uuid_id(original_name)
-        elif self.method == 'sequential':
+        elif self.method == "sequential":
             anon_id = self._sequential_id(original_name)
-        elif self.method == 'numeric':
+        elif self.method == "numeric":
             anon_id = self._numeric_id(original_name)
         else:
             raise ValueError(f"Unknown method: {self.method}")
@@ -211,7 +212,7 @@ class UserAnonymiser:
     def save_mapping(self, filepath: str):
         """Save mapping to CSV."""
         mapping_df = pd.DataFrame([
-            {'original': orig, 'anonymous': anon}
+            {"original": orig, "anonymous": anon}
             for orig, anon in self.mapping.items()
         ])
         mapping_df.to_csv(filepath, index=False)
@@ -221,17 +222,43 @@ class UserAnonymiser:
         """Load mapping from CSV."""
         mapping_df = pd.read_csv(filepath)
         self.mapping = dict(
-            zip(mapping_df['original'], mapping_df['anonymous'])
+            zip(mapping_df["original"], mapping_df["anonymous"])
         )
         self.reverse_mapping = dict(
-            zip(mapping_df['anonymous'], mapping_df['original'])
+            zip(mapping_df["anonymous"], mapping_df["original"])
         )
         # Update counter for sequential method
-        if self.method == 'sequential':
+        if self.method == "sequential":
             max_num = max(
-                [int(aid.split('_')[1]) for aid in self.mapping.values()
-                 if aid.startswith('user_') and aid.split('_')[1].isdigit()],
+                [int(aid.split("_")[1]) for aid in self.mapping.values()
+                 if aid.startswith("user_") and aid.split("_")[1].isdigit()],
                 default=0
             )
             self.counter = max_num + 1
         logger.info(f"Mapping loaded from {filepath}")
+
+# Handles in-text anonymisation
+def filter_bbs_header(text):
+    """
+    Filter out BBS header information from the bulletin board posts.
+    Removes author, board, title, and timestamp lines.
+    """
+    lines = text.split("\n")
+    filtered_lines = []
+    metadata_patterns = [
+        # Author and board line
+        r"^作者:\s*\w+.*看板:\s*[\w-]+",
+        # Title line
+        r"^標題:\s*.*",
+        # Timestamp line
+        r"^時間:\s*\w{3}\s+\w{3}\s+\d+\s+\d{2}:\d{2}:\d{2}\s+\d{4}",
+    ]
+    for line in lines:
+        is_metadata = any(
+            re.match(pattern, line) for pattern in metadata_patterns
+        )
+        if not is_metadata:
+            filtered_lines.append(line)
+    result = "\n".join(filtered_lines)
+    result = re.sub(r"\n\s*\n\s*\n", "\n\n", result)
+    return result
