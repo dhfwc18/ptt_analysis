@@ -1,17 +1,19 @@
-# pipeline/tokeniser.py
+# src/ptt_crawler/tokeniser.py
 """Tokeniser module for PTT data."""
 
-__all__ = ["tokenise", "tokenise_dataframe", "PttTextTokeniser"]
+__all__ = ["PttTextTokeniser", "tokenise", "tokenise_dataframe"]
 
-# Internal imports
-from config.config import JIEBA_DICT_PATH
-
-# External imports
-import jieba
-import pandas as pd
 import re
 import string
+from logging import getLogger
+
+import jieba
+import pandas as pd
 import validators
+
+from .config.config import CHINESE_PUNCTS, JIEBA_DICT_PATH
+
+logger = getLogger(__name__)
 
 
 def tokenise(text: str) -> list:
@@ -36,6 +38,7 @@ def tokenise(text: str) -> list:
 
     return tokens
 
+
 def tokenise_dataframe(df: pd.DataFrame, column: str) -> pd.DataFrame:
     """
     Tokenise a specific column in a DataFrame.
@@ -53,28 +56,18 @@ def tokenise_dataframe(df: pd.DataFrame, column: str) -> pd.DataFrame:
         A copy of the DataFrame with the specified column tokenised.
     """
     if column not in df.columns:
-        raise ValueError(
-            f"Column '{column}' does not exist in DataFrame."
-        )
+        raise ValueError(f"Column '{column}' does not exist in DataFrame.")
 
     df_tokenised = df.copy()
     df_tokenised[column] = df_tokenised[column].apply(tokenise)
 
     return df_tokenised
 
+
 class PttTextTokeniser:
     def __init__(self):
         self.english_punctuations = list(string.punctuation)
-        self.chinese_punctuations = [
-            "。", "，", "！", "？", "；", "：", "＂", "＃", "＄", "％", "＆", "＇", "＊",
-            "＋", "－", "／", "：", "；", "＜", "＝", "＞", "＠", "［", "＼", "］", "＾",
-            "＿", "｀", "｛", "｜", "｝", "～", "｟", "｠", "｢", "｣", "､", "、", "〃",
-            "》", "「", "」", "『", "』", "【", "】", "〔", "〕", "〖", "〗", "〘", "〙",
-            "〚", "〛", "〜", "〝", "〞", "〟", "〰", "〾", "〿", "–", "—", "'", "'", "‛",
-            """, """, "„", "‟", "…", "‧", "﹏", "！", "？", "｡", "。", "＂", "＃", "＄",
-            "％", "＆", "＇", "（", "）", "＊", "＋", "，", "－", "／", "：", "；", "＜",
-            "＝", "＞", "＠", "［", "＼", "］", "＾", "＿", "｀", "｛", "｜", "｝", "～"
-        ]
+        self.chinese_punctuations = CHINESE_PUNCTS
 
         jieba.set_dictionary(JIEBA_DICT_PATH)
         jieba.initialize()
@@ -85,10 +78,10 @@ class PttTextTokeniser:
         # Remove URLs using validators library
         words = text.split()
         words = [word for word in words if not validators.url(word)]
-        text = ' '.join(words)
+        text = " ".join(words)
 
         # Remove unwanted patterns
-        text = re.sub("※\s?(\[本文轉錄自).*", "", text)
+        text = re.sub(r"※\s?(\[本文轉錄自).*", "", text)
         text = re.sub("(作者:).*", "", text)
         text = re.sub("(看板:).*", "", text)
         text = re.sub("(標題:).*", "", text)
@@ -99,18 +92,12 @@ class PttTextTokeniser:
 
     def _remove_punct(self, tokens: list) -> list:
         """Remove punctuation from a list of tokens."""
-        all_punctuations = set(
-            self.english_punctuations + self.chinese_punctuations
-        )
+        all_punctuations = set(self.english_punctuations + self.chinese_punctuations)
         return [
-            token for token in tokens if (
-                token and (token not in all_punctuations)
-            )
+            token for token in tokens if (token and (token not in all_punctuations))
         ]
 
-    def tokenise_text(
-            self, text: str, remove_punctuation: bool = False
-    ) -> list:
+    def tokenise_text(self, text: str, remove_punctuation: bool = False) -> list:
         """
         Tokenise the input text after basic cleaning.
 
@@ -136,10 +123,8 @@ class PttTextTokeniser:
         return tokens
 
     def tokenise_dataframe_column(
-            self, df: pd.DataFrame,
-            target_column: str,
-            remove_punctuation: bool = False
-        ) -> pd.DataFrame:
+        self, df: pd.DataFrame, target_column: str, remove_punctuation: bool = False
+    ) -> pd.DataFrame:
         """
         Perform word tokenisation on the specified column of the
         DataFrame.
@@ -162,9 +147,9 @@ class PttTextTokeniser:
             df[target_column] = df[target_column].apply(self._basic_cleaning)
             df_tokenised = tokenise_dataframe(df=df, column=target_column)
             if remove_punctuation:
-                df_tokenised[target_column] = (
-                    df_tokenised[target_column].apply(self._remove_punct)
+                df_tokenised[target_column] = df_tokenised[target_column].apply(
+                    self._remove_punct
                 )
         except ValueError as e:
-            raise ValueError(f"Error in tokenisation: {e}")
+            logger.error(f"Error in tokenising DataFrame column: {e}")
         return df_tokenised

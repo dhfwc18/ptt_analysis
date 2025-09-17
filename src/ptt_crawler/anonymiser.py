@@ -1,55 +1,49 @@
-# pipeline/anonymiser.py
+# src/ptt_crawler/anonymiser.py
 """Anonymiser module for usernames in PTT data."""
 
-__all__ = ["UserAnonymiser"]
+__all__ = ["UserAnonymiser", "filter_bbs_header"]
 
-# External imports
 import hashlib
 import random
+import re
 import string
 import uuid
-from typing import Dict, Optional
+from logging import getLogger
 
 import pandas as pd
-import re
 
-# Get logger
-from config.logging_config import get_logger
+logger = getLogger(__name__)
 
-logger = get_logger(__name__)
 
 class UserAnonymiser:
     """
-    Simple framework for user name anonymisation. Usernames are
-    converted to anonymous IDs with various methods, including
-    hashing, random strings, UUIDs, sequential numbering, and random
-    numeric IDs.
+    Simple framework for user name anonymisation. Usernames are converted to
+    anonymous IDs with various methods, including hashing, random strings,
+    UUIDs, sequential numbering, and random numeric IDs.
     """
+
     def __init__(self, method="hash", seed=42, id_length=8):
         """
-        Initialise the anonymiser with the specified method and
-        parameters.
+        Initialise the anonymiser with the specified method and parameters.
 
         Parameters
         ----------
         method : str, optional
-            The anonymisation method to use. The default is "hash" and
-            the options are:
+            The anonymisation method to use. The default is "hash" and the
+            options are:
             - `hash`: Use a hash function to create a deterministic ID.
             - `random_string`: Generate a random string ID.
             - `uuid`: Use UUIDs to create unique IDs.
             - `sequential`: Use sequential numbering for IDs.
             - `numeric`: Create a numeric ID based on a hash.
         seed : int, optional
-            The seed for random number generation to ensure
-            reproducibility. The default is 42.
+            The seed for random number generation to ensure reproducibility.
+            The default is 42.
         id_length : int, optional
-            The length of the radomly generated anonymisation IDs. The
+            The length of the randomly generated anonymisation IDs. The
             default is 8.
         """
-        if method not in (
-            ["hash", "random_string", "uuid", "sequential", "numeric"]
-        ):
+        if method not in (["hash", "random_string", "uuid", "sequential", "numeric"]):
             raise ValueError(
                 f"Unknown method: {method}. Choose from 'hash', "
                 "'random_string', 'uuid', 'sequential', or 'numeric'."
@@ -65,7 +59,7 @@ class UserAnonymiser:
     def _hash_id(self, name: str) -> str:
         """Create deterministic hash-based ID."""
         hash_object = hashlib.md5(f"{name}{self.seed}".encode())
-        hash_hex = hash_object.hexdigest()[:self.id_length]
+        hash_hex = hash_object.hexdigest()[: self.id_length]
         return f"user_{hash_hex}"
 
     def _random_string_id(self, name: str) -> str:
@@ -91,13 +85,11 @@ class UserAnonymiser:
 
     def _numeric_id(self, name: str) -> str:
         """Create random numeric ID."""
-        hash_int = int(
-            hashlib.md5(f"{name}{self.seed}".encode()).hexdigest(), 16
-        )
-        numeric_id = str(hash_int)[:self.id_length]
+        hash_int = int(hashlib.md5(f"{name}{self.seed}".encode()).hexdigest(), 16)
+        numeric_id = str(hash_int)[: self.id_length]
         return numeric_id.zfill(self.id_length)
 
-    def anonymise_name(self, original_name: Optional[str]) -> str:
+    def anonymise_name(self, original_name: str | None) -> str:
         """
         Convert original name to an anonymous ID.
 
@@ -136,7 +128,7 @@ class UserAnonymiser:
 
         return anon_id
 
-    def deanonymise_id(self, anon_id: str) -> Optional[str]:
+    def deanonymise_id(self, anon_id: str) -> str | None:
         """
         Convert anonymous ID back to original name.
 
@@ -147,14 +139,12 @@ class UserAnonymiser:
 
         Returns
         -------
-        Optional[str]
+        str | None
             The original user name if found, otherwise None.
         """
         return self.reverse_mapping.get(anon_id)
 
-    def anonymise_dataframe(
-            self, df: pd.DataFrame, column_name: str
-    ) -> pd.DataFrame:
+    def anonymise_dataframe(self, df: pd.DataFrame, column_name: str) -> pd.DataFrame:
         """
         Convert names in a DataFrame column to anonymous IDs.
 
@@ -175,12 +165,9 @@ class UserAnonymiser:
         df_copy[column_name] = df_copy[column_name].apply(self.anonymise_name)
         return df_copy
 
-    def deanonymise_dataframe(
-            self, df: pd.DataFrame, column_name: str
-    ) -> pd.DataFrame:
+    def deanonymise_dataframe(self, df: pd.DataFrame, column_name: str) -> pd.DataFrame:
         """
-        Convert anonymous IDs in a DataFrame column back to original
-        names.
+        Convert anonymous IDs in a DataFrame column back to original names.
 
         Parameters
         ----------
@@ -196,25 +183,25 @@ class UserAnonymiser:
             deanonymised.
         """
         df_copy = df.copy()
-        df_copy[column_name] = (
-            df_copy[column_name].apply(self.deanonymise_id)
-        )
+        df_copy[column_name] = df_copy[column_name].apply(self.deanonymise_id)
         return df_copy
 
-    def get_mapping(self) -> Dict[str, str]:
+    def get_mapping(self) -> dict[str, str]:
         """Get original to anonymous mapping."""
         return self.mapping.copy()
 
-    def get_reverse_mapping(self) -> Dict[str, str]:
+    def get_reverse_mapping(self) -> dict[str, str]:
         """Get anonymous to original mapping."""
         return self.reverse_mapping.copy()
 
     def save_mapping(self, filepath: str):
         """Save mapping to CSV."""
-        mapping_df = pd.DataFrame([
-            {"original": orig, "anonymous": anon}
-            for orig, anon in self.mapping.items()
-        ])
+        mapping_df = pd.DataFrame(
+            [
+                {"original": orig, "anonymous": anon}
+                for orig, anon in self.mapping.items()
+            ]
+        )
         mapping_df.to_csv(filepath, index=False)
         logger.info(f"Mapping saved to {filepath}")
 
@@ -222,26 +209,30 @@ class UserAnonymiser:
         """Load mapping from CSV."""
         mapping_df = pd.read_csv(filepath)
         self.mapping = dict(
-            zip(mapping_df["original"], mapping_df["anonymous"])
+            zip(mapping_df["original"], mapping_df["anonymous"], strict=False)
         )
         self.reverse_mapping = dict(
-            zip(mapping_df["anonymous"], mapping_df["original"])
+            zip(mapping_df["anonymous"], mapping_df["original"], strict=False)
         )
         # Update counter for sequential method
         if self.method == "sequential":
             max_num = max(
-                [int(aid.split("_")[1]) for aid in self.mapping.values()
-                 if aid.startswith("user_") and aid.split("_")[1].isdigit()],
-                default=0
+                [
+                    int(aid.split("_")[1])
+                    for aid in self.mapping.values()
+                    if aid.startswith("user_") and aid.split("_")[1].isdigit()
+                ],
+                default=0,
             )
             self.counter = max_num + 1
         logger.info(f"Mapping loaded from {filepath}")
 
+
 # Handles in-text anonymisation
 def filter_bbs_header(text):
     """
-    Filter out BBS header information from the bulletin board posts.
-    Removes author, board, title, and timestamp lines.
+    Filter out BBS header information from the bulletin board posts. Removes
+    author, board, title, and timestamp lines.
     """
     lines = text.split("\n")
     filtered_lines = []
@@ -254,9 +245,7 @@ def filter_bbs_header(text):
         r"^時間:\s*\w{3}\s+\w{3}\s+\d+\s+\d{2}:\d{2}:\d{2}\s+\d{4}",
     ]
     for line in lines:
-        is_metadata = any(
-            re.match(pattern, line) for pattern in metadata_patterns
-        )
+        is_metadata = any(re.match(pattern, line) for pattern in metadata_patterns)
         if not is_metadata:
             filtered_lines.append(line)
     result = "\n".join(filtered_lines)

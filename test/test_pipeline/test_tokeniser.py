@@ -2,15 +2,18 @@
 """Unit tests for the tokenisation functionality."""
 
 import unittest
+
 import pandas as pd
-from pipeline.tokeniser import tokenise, tokenise_dataframe, PttTextTokeniser
+
+from ptt_crawler.tokeniser import PttTextTokeniser, tokenise, tokenise_dataframe
+
 
 class TestTokeniser(unittest.TestCase):
     def setUp(self):
         self.tokeniser = PttTextTokeniser()
-        self.test_df = pd.DataFrame({
-            "text": ["This is test text", "Another test text"]
-        })
+        self.test_df = pd.DataFrame(
+            {"text": ["This is test text", "Another test text"]}
+        )
 
     def test_tokenise_basic(self):
         text = "你好，世界！"
@@ -59,13 +62,12 @@ class TestTokeniser(unittest.TestCase):
 
     def test_ptt_tokeniser_tokenise_dataframe_column(self):
         result_df = self.tokeniser.tokenise_dataframe_column(
-            self.test_df,
-            "text",
-            remove_punctuation=True
+            self.test_df, "text", remove_punctuation=True
         )
         self.assertIsInstance(result_df, pd.DataFrame)
         self.assertTrue("text" in result_df.columns)
         self.assertIsInstance(result_df["text"].iloc[0], list)
+
 
 if __name__ == "__main__":
     unittest.main()

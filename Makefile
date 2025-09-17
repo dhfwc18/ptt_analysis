@@ -66,18 +66,16 @@ ifeq ($(OS),Windows_NT)
 		exit /b 1 \
 	)
 	@$(CALL) $(VENV_ACTIVATE) && \
-		cd src && \
 		$(SET_PYTHONPATH) && \
-		python crawl_party_data.py
+		python scripts/crawl_party_data.py
 else
 	@if [ ! -d ".venv" ]; then \
 		echo "→ Virtual environment not found. Run 'make init' first."; \
 		exit 1; \
 	fi
 	@$(CALL) $(VENV_ACTIVATE) && \
-		cd src && \
 		$(SET_PYTHONPATH) && \
-		python pipeline/crawl_party_data.py
+		python scripts/crawl_party_data.py
 endif
 
 clean:
